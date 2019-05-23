@@ -7,13 +7,12 @@ import (
 	"math/bits"
 	"os"
 	"sync"
+
+	"github.com/gganley/skyrim/internal/skyrim"
 )
 
 // What needs to happen
 // store known combinations in a way that can be atomically accessed
-
-type Ingredient struct{ disc, all uint64 } // Disc holds all of the
-type Effect uint64                         // 2^i where i is the index of the effect
 
 // This is my ever nice term for the return type of f()
 type FunkyType struct {
@@ -23,15 +22,15 @@ type FunkyType struct {
 }
 
 // The function that determines all the crucial information
-func f(ings []string, Im map[string]*Ingredient) FunkyType {
+func f(ings []string, Im map[string]*skyrim.Ingredient) FunkyType {
 	// Determine the complete possible potion
-	gamma := Im[ings[0]].all&Im[ings[1]].all |
-		Im[ings[0]].all&Im[ings[2]].all |
-		Im[ings[1]].all&Im[ings[2]].all
+	gamma := Im[ings[0]].All&Im[ings[1]].All |
+		Im[ings[0]].All&Im[ings[2]].All |
+		Im[ings[1]].All&Im[ings[2]].All
 
-	a := Im[ings[0]].disc & gamma
-	b := Im[ings[1]].disc & gamma
-	c := Im[ings[2]].disc & gamma
+	a := Im[ings[0]].Disc & gamma
+	b := Im[ings[1]].Disc & gamma
+	c := Im[ings[2]].Disc & gamma
 
 	// All the ingredients that will be discovered
 	q := bits.OnesCount64(a) + bits.OnesCount64(b) + bits.OnesCount64(c)
@@ -40,14 +39,14 @@ func f(ings []string, Im map[string]*Ingredient) FunkyType {
 
 func main() {
 	// `Im` is the Inredient Map, basically because reading binary data gets old after a while
-	Im, _ := discoverImEm()
+	Im, _ := skyrim.DiscoverImEm()
 
 	// Get/Make the non-dud potions
 	_, err := os.Open("nonduds.csv")
 	if os.IsNotExist(err) {
-		WriteNonDuds(Im)
+		skyrim.WriteNonDuds(Im)
 	}
-	nonDuds := getNonDuds()
+	nonDuds := skyrim.GetNonDuds()
 
 	// The list of potions that determine all the ingredients
 	var retVal [][]string
@@ -62,7 +61,7 @@ func main() {
 		for _, v := range nonDuds {
 			wg.Add(1)
 			val := v
-			go func(x []string, i map[string]*Ingredient) {
+			go func(x []string, i map[string]*skyrim.Ingredient) {
 				defer wg.Done()
 				result <- f(x, i)
 			}(val, Im)
@@ -87,7 +86,7 @@ func main() {
 
 		for _, v := range maxCombo {
 			// Turn off the discovered bits in each ingredient
-			Im[v].disc = Im[v].disc &^ potionToBeSubtracted
+			Im[v].Disc = Im[v].Disc &^ potionToBeSubtracted
 		}
 
 		// Append the found best potion to the return value
@@ -95,16 +94,12 @@ func main() {
 	}
 
 	// Printing the result
-	for _, v := range retVal {
-		fmt.Println(v)
-	}
-
 	fmt.Println(len(retVal))
 }
 
-func effectsLeft(Im map[string]*Ingredient) bool {
+func effectsLeft(Im map[string]*skyrim.Ingredient) bool {
 	for _, v := range Im {
-		if v.disc > 0 {
+		if v.Disc > 0 {
 			return true
 		}
 	}
