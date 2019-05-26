@@ -94,7 +94,7 @@ func DiscoverImEm() (Im map[string]*Ingredient, Em map[string]*Effect) {
 	Im = make(map[string]*Ingredient)
 	Em = make(map[string]*Effect)
 
-	effFile, err := os.Open("assets/eff.txt")
+	effFile, err := os.Open("./assets/eff.txt")
 	if err != nil {
 		log.Fatal(err)
 	}

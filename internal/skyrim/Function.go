@@ -6,7 +6,50 @@ import (
 	"sync"
 )
 
-func SingleCycle() int {
+func FullCycle(Im map[string]*Ingredient, nonDuds [][]string) int {
+
+	// The list of potions that determine all the ingredients
+	var retThing [][]int
+	var iteration int
+
+	for effectsLeft(Im) {
+		// determine best canadates for this iteration
+		// in the case of 1 best canadate just remove that potion and continue
+		// if there is more than one best canadate then split off each of those canadates onto it's own thread
+		// once they've all reterened determine which one is the best
+		// return that best
+		//
+		//
+
+		potions := SingleCycle(Im, nonDuds)
+		// Break off on all potions
+		if len(potions) == 1 {
+			RemovePotion(Im, potions[0])
+			continue
+		} else {
+			for potion := range potions {
+				newIm := copyMap(Im)
+				RemovePotion(newIm, potion)
+				retThing[iteration] = append(retThing[iteration], FullCycle(Im, nonDuds))
+			}
+		}
+	}
+}
+
+func copyMap(Im map[string]*Ingredient) map[string]*Ingredient {
+	newMap := make(map[string]*Ingredient)
+	for k, v := range Im {
+		*newMap[k] = *v
+	}
+
+	return newMap
+}
+
+func RemovePotion(Im map[string]*Ingredient, potion PotionStructure) {
+
+}
+
+func SetupCycle() (map[string]*Ingredient, [][]string) {
 	// `Im` is the Inredient Map, basically because reading binary data gets old after a while
 	Im, _ := DiscoverImEm()
 
@@ -16,53 +59,57 @@ func SingleCycle() int {
 		WriteNonDuds(Im)
 	}
 	nonDuds := GetNonDuds()
+	return Im, nonDuds
+}
 
-	// The list of potions that determine all the ingredients
-	var retVal [][]string
+func SingleCycle(Im map[string]*Ingredient, nonDuds [][]string) []PotionStructure {
+	// The channel that all the results of each iteration of f() is sent to
+	result := make(chan PotionStructure, 8500)
 
-	for effectsLeft(Im) {
-		// The channel that all the results of each iteration of f() is sent to
-		result := make(chan PotionStructure, 8500)
-
-		// This is a sync utility that lets me manage the lifetime of the channel by incrementing it when a new process
-		// is added and decrementing it when its done calculating it
-		var wg sync.WaitGroup
-		for _, v := range nonDuds {
-			wg.Add(1)
-			val := v
-			go func(x []string, i map[string]*Ingredient) {
-				defer wg.Done()
-				result <- f(x, i)
-			}(val, Im)
-		}
-
-		// This runs when all the goroutines that run f() have finished, then contines to the next for-loop
-		go func() {
-			wg.Wait()
-			close(result)
-		}()
-
-		max := 0
-		var maxCombo []string
-		potionToBeSubtracted := uint64(0)
-		for v := range result {
-			if v.NumberOfDiscoveredEffects > max {
-				max = v.NumberOfDiscoveredEffects
-				maxCombo = v.IngredientNames
-				potionToBeSubtracted = v.Potion
-			}
-		}
-
-		for _, v := range maxCombo {
-			// Turn off the discovered bits in each ingredient
-			Im[v].Disc = Im[v].Disc &^ potionToBeSubtracted
-		}
-
-		// Append the found best potion to the return value
-		retVal = append(retVal, maxCombo)
+	// This is a sync utility that lets me manage the lifetime of the channel by incrementing it when a new process
+	// is added and decrementing it when its done calculating it
+	var wg sync.WaitGroup
+	for _, v := range nonDuds {
+		wg.Add(1)
+		val := v
+		go func(x []string, i map[string]*Ingredient) {
+			defer wg.Done()
+			result <- f(x, i)
+		}(val, Im)
 	}
 
-	return len(retVal)
+	// This runs when all the goroutines that run f() have finished, then contines to the next for-loop
+	go func() {
+		wg.Wait()
+		close(result)
+	}()
+
+	// This is where we determine whose best, need to care for equal best
+	// var max int
+	// var maxCombo [][]string
+	// var potionToBeSubtracted uint64
+	maxMap := make(map[int][]PotionStructure)
+
+	for v := range result {
+		maxMap[v.NumberOfDiscoveredEffects] = append(maxMap[v.NumberOfDiscoveredEffects], v)
+	}
+
+	var maxKey int
+	var finalCombo []PotionStructure
+	for key, val := range maxMap {
+		if key > maxKey {
+			finalCombo = val
+		}
+	}
+
+	// for _, v := range maxCombo {
+	// 	// Turn off the discovered bits in each ingredient
+	// 	Im[v].Disc = Im[v].Disc &^ potionToBeSubtracted
+	// }
+	// Leave the subtraction for later
+
+	// Append the found best potion to the return value
+	return finalCombo
 }
 
 func effectsLeft(Im map[string]*Ingredient) bool {

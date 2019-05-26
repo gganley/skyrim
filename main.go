@@ -9,5 +9,6 @@ import (
 )
 
 func main() {
-	fmt.Println(skyrim.SingleCycle())
+	Im, nonDuds := skyrim.SetupCycle()
+	fmt.Println(skyrim.FullCycle(Im, nonDuds))
 }
